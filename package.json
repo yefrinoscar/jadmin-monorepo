@@ -1,0 +1,17 @@
+{
+    "name": "jadmin",
+    "private": true,
+    "workspaces": [
+        "apps/*",
+        "packages/*"
+    ],
+    "devDependencies": {
+        "turbo": "^2.8.7"
+    },
+    "packageManager": "npm@11.4.1",
+    "scripts": {
+        "dev": "turbo run dev",
+        "build": "turbo run build",
+        "lint": "turbo run lint"
+    }
+}
