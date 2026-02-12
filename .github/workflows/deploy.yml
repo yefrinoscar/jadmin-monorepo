@@ -1,0 +1,53 @@
+name: Deploy to Hetzner VPS
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+env:
+  DEPLOY_PATH: ~/apps/jadmin
+
+jobs:
+  deploy:
+    name: Build & Deploy
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          password: ${{ secrets.VPS_PASSWORD }}
+          script: |
+            set -e
+
+            # Clone or pull latest code
+            if [ ! -d "$HOME/apps/jadmin" ]; then
+              git clone ${{ secrets.REPO_URL }} $HOME/apps/jadmin
+            fi
+
+            cd $HOME/apps/jadmin
+            git fetch origin main
+            git reset --hard origin/main
+
+            # Ensure .env exists
+            if [ ! -f .env ]; then
+              echo "ERROR: .env file not found. Create it first from .env.example"
+              exit 1
+            fi
+
+            # Ensure shared network exists
+            docker network inspect web >/dev/null 2>&1 || docker network create web
+
+            # Build and deploy
+            docker compose build --no-cache
+            docker compose up -d
+
+            # Run database migrations
+            docker compose exec -T backend npx drizzle-kit push
+
+            # Cleanup old images
+            docker image prune -f
+
+            echo "✅ Deploy complete"
