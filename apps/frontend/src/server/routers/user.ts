@@ -1,18 +1,24 @@
 import { z } from "zod";
 import { router, protectedProcedure } from "../trpc";
-import { user } from "@/lib/schema";
-import { eq } from "drizzle-orm";
 import { USER_ROLES } from "@/lib/constants";
-import { auth } from "@/lib/auth";
 import { TRPCError } from "@trpc/server";
+import { backendApi } from "@/lib/backend";
+
+// ─── Helper: extract cookie from tRPC request context ────────────────────────
+
+function getCookie(ctx: { req: Request }): string {
+  return ctx.req.headers.get("cookie") || "";
+}
 
 export const userRouter = router({
   /**
    * Get all users - protected route
    */
   getAll: protectedProcedure.query(async ({ ctx }) => {
-    const users = await ctx.db.select().from(user);
-    return users;
+    const res = await backendApi<{ data: any[] }>("/api/users", {
+      cookie: getCookie(ctx),
+    });
+    return res.data;
   }),
 
   /**
@@ -21,12 +27,14 @@ export const userRouter = router({
   getById: protectedProcedure
     .input(z.object({ id: z.string() }))
     .query(async ({ ctx, input }) => {
-      const [foundUser] = await ctx.db
-        .select()
-        .from(user)
-        .where(eq(user.id, input.id))
-        .limit(1);
-      return foundUser ?? null;
+      try {
+        const res = await backendApi<{ data: any }>(`/api/users/${input.id}`, {
+          cookie: getCookie(ctx),
+        });
+        return res.data ?? null;
+      } catch {
+        return null;
+      }
     }),
 
   /**
@@ -48,48 +56,22 @@ export const userRouter = router({
       })
     )
     .mutation(async ({ ctx, input }) => {
-      // Check if email already exists
-      const existingUser = await ctx.db
-        .select()
-        .from(user)
-        .where(eq(user.email, input.email))
-        .limit(1);
-
-      if (existingUser.length > 0) {
-        throw new TRPCError({
-          code: "CONFLICT",
-          message: "El email ya está registrado",
+      try {
+        const res = await backendApi<{ data: any }>("/api/users", {
+          method: "POST",
+          cookie: getCookie(ctx),
+          body: input,
         });
-      }
-
-      // Create user using better-auth
-      // We must create the user as enabled first to allow session creation (workaround for our anti-disabled-session hook)
-      // or to ensure creation succeeds. Then we update the user if they should be disabled.
-      const result = await auth.api.signUpEmail({
-        body: {
-          email: input.email,
-          password: input.password,
-          name: input.name,
-          role: input.role,
-          isDisabled: false, // Create enabled initially
-        },
-      });
-
-      let createdUser = result.user;
-
-      if (input.isDisabled) {
-        const [updatedUser] = await ctx.db
-          .update(user)
-          .set({ isDisabled: true })
-          .where(eq(user.id, createdUser.id))
-          .returning();
-        
-        if (updatedUser) {
-          createdUser = updatedUser;
+        return res.data;
+      } catch (error: any) {
+        if (error.message?.includes("email ya está registrado")) {
+          throw new TRPCError({ code: "CONFLICT", message: error.message });
         }
+        if (error.message?.includes("Superadmin")) {
+          throw new TRPCError({ code: "FORBIDDEN", message: error.message });
+        }
+        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: error.message });
       }
-
-      return createdUser;
     }),
 
   /**
@@ -108,41 +90,18 @@ export const userRouter = router({
       })
     )
     .mutation(async ({ ctx, input }) => {
-      // Get target user to check permissions
-      const [targetUser] = await ctx.db
-        .select()
-        .from(user)
-        .where(eq(user.id, input.id))
-        .limit(1);
-
-      if (!targetUser) {
+      try {
+        const res = await backendApi<{ data: any }>(
+          `/api/users/${input.id}/role`,
+          { method: "PATCH", cookie: getCookie(ctx), body: { role: input.role } },
+        );
+        return res.data;
+      } catch (error: any) {
         throw new TRPCError({
-          code: "NOT_FOUND",
-          message: "Usuario no encontrado",
+          code: error.message?.includes("no encontrado") ? "NOT_FOUND" : "FORBIDDEN",
+          message: error.message,
         });
       }
-
-      const currentUser = ctx.session.user;
-
-      // Protection: Only Superadmin can edit Superadmin
-      if (
-        targetUser.role === USER_ROLES.SUPERADMIN &&
-        currentUser.role !== USER_ROLES.SUPERADMIN
-      ) {
-        throw new TRPCError({
-          code: "FORBIDDEN",
-          message: "Solo un Superadmin puede editar a otro Superadmin",
-        });
-      }
-
-      // Protection: Cannot demote the last Superadmin (Optional but good practice, skipping for now as not requested)
-
-      const [updatedUser] = await ctx.db
-        .update(user)
-        .set({ role: input.role })
-        .where(eq(user.id, input.id))
-        .returning();
-      return updatedUser;
     }),
 
   /**
@@ -164,68 +123,22 @@ export const userRouter = router({
       })
     )
     .mutation(async ({ ctx, input }) => {
-      // Get target user to check permissions
-      const [targetUser] = await ctx.db
-        .select()
-        .from(user)
-        .where(eq(user.id, input.id))
-        .limit(1);
-
-      if (!targetUser) {
-        throw new TRPCError({
-          code: "NOT_FOUND",
-          message: "Usuario no encontrado",
-        });
+      const { id, ...body } = input;
+      try {
+        const res = await backendApi<{ data: any }>(
+          `/api/users/${id}`,
+          { method: "PATCH", cookie: getCookie(ctx), body },
+        );
+        return res.data;
+      } catch (error: any) {
+        if (error.message?.includes("no encontrado")) {
+          throw new TRPCError({ code: "NOT_FOUND", message: error.message });
+        }
+        if (error.message?.includes("email ya está registrado")) {
+          throw new TRPCError({ code: "CONFLICT", message: error.message });
+        }
+        throw new TRPCError({ code: "FORBIDDEN", message: error.message });
       }
-
-      const currentUser = ctx.session.user;
-
-      // Protection: Only Superadmin can edit a Superadmin
-      if (
-        targetUser.role === USER_ROLES.SUPERADMIN &&
-        currentUser.role !== USER_ROLES.SUPERADMIN
-      ) {
-        throw new TRPCError({
-          code: "FORBIDDEN",
-          message: "Solo un Superadmin puede editar a otro Superadmin",
-        });
-      }
-
-      // Protection: Cannot disable a Superadmin
-      if (targetUser.role === USER_ROLES.SUPERADMIN && input.isDisabled) {
-        throw new TRPCError({
-          code: "FORBIDDEN",
-          message: "No se puede desactivar a un Superadmin",
-        });
-      }
-
-      // Protection: prevent non-superadmin from promoting to superadmin
-      if (
-        input.role === USER_ROLES.SUPERADMIN &&
-        currentUser.role !== USER_ROLES.SUPERADMIN
-      ) {
-         throw new TRPCError({
-          code: "FORBIDDEN",
-          message: "Solo un Superadmin puede asignar el rol de Superadmin",
-        });
-      }
-
-      const updateData: any = {
-        name: input.name,
-        email: input.email,
-        isDisabled: input.isDisabled,
-      };
-
-      if (input.role) {
-        updateData.role = input.role;
-      }
-
-      const [updatedUser] = await ctx.db
-        .update(user)
-        .set(updateData)
-        .where(eq(user.id, input.id))
-        .returning();
-      return updatedUser;
     }),
 
   /**
@@ -234,43 +147,18 @@ export const userRouter = router({
   delete: protectedProcedure
     .input(z.object({ id: z.string() }))
     .mutation(async ({ ctx, input }) => {
-      // Get target user to check permissions
-      const [targetUser] = await ctx.db
-        .select()
-        .from(user)
-        .where(eq(user.id, input.id))
-        .limit(1);
-
-      if (!targetUser) {
-        throw new TRPCError({
-          code: "NOT_FOUND",
-          message: "Usuario no encontrado",
+      try {
+        await backendApi(`/api/users/${input.id}`, {
+          method: "DELETE",
+          cookie: getCookie(ctx),
         });
+        return { success: true };
+      } catch (error: any) {
+        if (error.message?.includes("no encontrado")) {
+          throw new TRPCError({ code: "NOT_FOUND", message: error.message });
+        }
+        throw new TRPCError({ code: "FORBIDDEN", message: error.message });
       }
-
-      const currentUser = ctx.session.user;
-
-      // Protection: Only Superadmin can edit (delete) Superadmin
-      if (
-        targetUser.role === USER_ROLES.SUPERADMIN &&
-        currentUser.role !== USER_ROLES.SUPERADMIN
-      ) {
-        throw new TRPCError({
-          code: "FORBIDDEN",
-          message: "Solo un Superadmin puede eliminar a otro Superadmin",
-        });
-      }
-
-      // Protection: Prevent deleting yourself
-      if (targetUser.id === currentUser.id) {
-        throw new TRPCError({
-          code: "FORBIDDEN",
-          message: "No puedes eliminar tu propia cuenta",
-        });
-      }
-
-      await ctx.db.delete(user).where(eq(user.id, input.id));
-      return { success: true };
     }),
 
   /**
@@ -284,46 +172,17 @@ export const userRouter = router({
       })
     )
     .mutation(async ({ ctx, input }) => {
-      // Get target user to check permissions
-      const [targetUser] = await ctx.db
-        .select()
-        .from(user)
-        .where(eq(user.id, input.id))
-        .limit(1);
-
-      if (!targetUser) {
-        throw new TRPCError({
-          code: "NOT_FOUND",
-          message: "Usuario no encontrado",
-        });
+      try {
+        const res = await backendApi<{ data: any }>(
+          `/api/users/${input.id}/toggle-disabled`,
+          { method: "PATCH", cookie: getCookie(ctx), body: { isDisabled: input.isDisabled } },
+        );
+        return res.data;
+      } catch (error: any) {
+        if (error.message?.includes("no encontrado")) {
+          throw new TRPCError({ code: "NOT_FOUND", message: error.message });
+        }
+        throw new TRPCError({ code: "FORBIDDEN", message: error.message });
       }
-
-      const currentUser = ctx.session.user;
-
-      // Protection: Only Superadmin can edit (disable) Superadmin
-      if (
-        targetUser.role === USER_ROLES.SUPERADMIN &&
-        currentUser.role !== USER_ROLES.SUPERADMIN
-      ) {
-        throw new TRPCError({
-          code: "FORBIDDEN",
-          message: "Solo un Superadmin puede modificar a otro Superadmin",
-        });
-      }
-
-      // Protection: Cannot disable a Superadmin
-      if (targetUser.role === USER_ROLES.SUPERADMIN && input.isDisabled) {
-        throw new TRPCError({
-          code: "FORBIDDEN",
-          message: "No se puede desactivar a un Superadmin",
-        });
-      }
-
-      const [updatedUser] = await ctx.db
-        .update(user)
-        .set({ isDisabled: input.isDisabled })
-        .where(eq(user.id, input.id))
-        .returning();
-      return updatedUser;
     }),
 });

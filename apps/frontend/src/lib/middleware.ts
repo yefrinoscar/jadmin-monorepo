@@ -1,14 +1,38 @@
 import { redirect } from "@tanstack/react-router";
 import { createMiddleware } from "@tanstack/react-start";
 import { getRequestHeaders } from "@tanstack/react-start/server";
-import { auth } from "@/lib/auth";
 import { USER_ROLES } from "@/lib/constants";
+
+const BACKEND_URL = process.env.VITE_BACKEND_URL || "http://localhost:8080";
+
+// ─── Helper: get session from backend auth server ────────────────────────────
+
+async function getSessionFromBackend(headers: Headers) {
+  try {
+    const cookie = headers.get("cookie");
+    if (!cookie) return null;
+
+    const res = await fetch(`${BACKEND_URL}/api/auth/get-session`, {
+      method: "GET",
+      headers: {
+        cookie,
+      },
+    });
+
+    if (!res.ok) return null;
+
+    const data = await res.json();
+    return data?.session && data?.user ? { session: data.session, user: data.user } : null;
+  } catch {
+    return null;
+  }
+}
 
 // Middleware to protect routes - requires authentication
 export const authMiddleware = createMiddleware().server(
   async ({ next }) => {
     const headers = getRequestHeaders();
-    const session = await auth.api.getSession({ headers });
+    const session = await getSessionFromBackend(headers);
 
     if (!session) {
       throw redirect({ to: "/login", search: { error: undefined, redirect: undefined } });
@@ -17,7 +41,6 @@ export const authMiddleware = createMiddleware().server(
     // Check if user is disabled
     const user = session.user as { isDisabled?: boolean };
     if (user.isDisabled) {
-      // Sign out the disabled user and redirect to login
       throw redirect({ to: "/login", search: { error: "disabled", redirect: undefined } });
     }
 
@@ -29,7 +52,7 @@ export const authMiddleware = createMiddleware().server(
 export const adminMiddleware = createMiddleware().server(
   async ({ next }) => {
     const headers = getRequestHeaders();
-    const session = await auth.api.getSession({ headers });
+    const session = await getSessionFromBackend(headers);
 
     if (!session) {
       throw redirect({ to: "/login", search: { error: undefined, redirect: undefined } });
@@ -44,7 +67,6 @@ export const adminMiddleware = createMiddleware().server(
     // Check if user has admin or superadmin role
     const allowedRoles = [USER_ROLES.ADMIN, USER_ROLES.SUPERADMIN];
     if (!user.role || !allowedRoles.includes(user.role as typeof USER_ROLES.ADMIN)) {
-      // Redirect non-admin users to main dashboard
       throw redirect({ to: "/chat-soporte" });
     }
 
@@ -56,13 +78,11 @@ export const adminMiddleware = createMiddleware().server(
 export const guestMiddleware = createMiddleware().server(
   async ({ next }) => {
     const headers = getRequestHeaders();
-    const session = await auth.api.getSession({ headers });
+    const session = await getSessionFromBackend(headers);
 
     if (session) {
-      // Check if user is disabled before redirecting
       const user = session.user as { isDisabled?: boolean };
       if (user.isDisabled) {
-        // Don't redirect disabled users, let them see login with error
         return await next();
       }
       throw redirect({ to: "/chat-soporte" });
