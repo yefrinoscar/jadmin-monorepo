@@ -68,8 +68,9 @@ jobs:
             docker compose build --no-cache frontend
             docker compose up -d
 
-            # Run database migrations
-            docker compose exec -T backend npx drizzle-kit push
+            # NOTE: Run migrations manually when schema changes:
+            # docker compose exec -T backend npx drizzle-kit push
+            # Or from local: npx drizzle-kit push (pointing at production DB)
 
             # Cleanup old images
             docker image prune -f
