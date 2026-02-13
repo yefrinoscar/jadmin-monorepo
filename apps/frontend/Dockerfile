@@ -4,8 +4,9 @@ WORKDIR /app
 # ── Install deps (monorepo root lockfile) ──
 FROM base AS deps
 COPY package.json package-lock.json ./
+COPY apps/backend/package.json ./apps/backend/
 COPY apps/frontend/package.json ./apps/frontend/
-RUN npm install --workspace=apps/frontend --include-workspace-root
+RUN npm ci
 
 # ── Build ──
 FROM base AS build

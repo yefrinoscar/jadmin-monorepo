@@ -5,7 +5,8 @@ WORKDIR /app
 FROM base AS deps
 COPY package.json package-lock.json ./
 COPY apps/backend/package.json ./apps/backend/
-RUN npm install --workspace=apps/backend --include-workspace-root
+COPY apps/frontend/package.json ./apps/frontend/
+RUN npm ci
 
 # ── Build ──
 FROM base AS build
