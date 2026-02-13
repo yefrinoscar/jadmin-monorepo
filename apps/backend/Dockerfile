@@ -13,7 +13,7 @@ FROM base AS build
 COPY --from=deps /app/node_modules ./node_modules
 COPY apps/backend ./apps/backend
 WORKDIR /app/apps/backend
-RUN npm run build
+RUN ln -s /app/node_modules ./node_modules && npm run build
 
 # ── Runtime ──
 FROM base AS runtime

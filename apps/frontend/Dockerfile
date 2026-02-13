@@ -13,6 +13,7 @@ FROM base AS build
 COPY --from=deps /app/node_modules ./node_modules
 COPY apps/frontend ./apps/frontend
 WORKDIR /app/apps/frontend
+RUN ln -s /app/node_modules ./node_modules
 ARG VITE_BACKEND_URL
 ENV VITE_BACKEND_URL=$VITE_BACKEND_URL
 RUN npm run build
