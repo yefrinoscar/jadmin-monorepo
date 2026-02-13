@@ -26,8 +26,17 @@ jobs:
             echo "Repo URL: ${{ secrets.REPO_URL }}"
 
             # Clone or pull latest code
-            if [ ! -d "$HOME/apps/jadmin" ]; then
+            if [ ! -d "$HOME/apps/jadmin/.git" ]; then
+              # Preserve .env if it exists
+              if [ -f "$HOME/apps/jadmin/.env" ]; then
+                cp $HOME/apps/jadmin/.env /tmp/jadmin_env_backup
+              fi
+              rm -rf $HOME/apps/jadmin
               git clone ${{ secrets.REPO_URL }} $HOME/apps/jadmin
+              # Restore .env
+              if [ -f /tmp/jadmin_env_backup ]; then
+                mv /tmp/jadmin_env_backup $HOME/apps/jadmin/.env
+              fi
             fi
 
             cd $HOME/apps/jadmin
