@@ -10,7 +10,6 @@ RUN npm install --workspace=apps/frontend --include-workspace-root
 # ── Build ──
 FROM base AS build
 COPY --from=deps /app/node_modules ./node_modules
-COPY --from=deps /app/apps/frontend/node_modules ./apps/frontend/node_modules
 COPY apps/frontend ./apps/frontend
 WORKDIR /app/apps/frontend
 ARG VITE_BACKEND_URL
