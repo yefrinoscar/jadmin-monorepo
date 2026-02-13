@@ -22,6 +22,8 @@ jobs:
           script: |
             set -e
 
+            echo ${{ secrets.REPO_URL }}
+
             # Clone or pull latest code
             if [ ! -d "$HOME/apps/jadmin" ]; then
               git clone ${{ secrets.REPO_URL }} $HOME/apps/jadmin
