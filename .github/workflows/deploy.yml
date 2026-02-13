@@ -52,8 +52,20 @@ jobs:
             # Ensure shared network exists
             docker network inspect web >/dev/null 2>&1 || docker network create web
 
-            # Build and deploy
-            docker compose build --no-cache
+            # Ensure swap exists (prevents OOM on low-RAM VPS)
+            if [ ! -f /swapfile ]; then
+              fallocate -l 2G /swapfile
+              chmod 600 /swapfile
+              mkswap /swapfile
+              swapon /swapfile
+              echo '/swapfile none swap sw 0 0' >> /etc/fstab
+              echo "Swap created"
+            fi
+            swapon --show
+
+            # Build sequentially to reduce peak memory usage
+            docker compose build --no-cache backend
+            docker compose build --no-cache frontend
             docker compose up -d
 
             # Run database migrations
