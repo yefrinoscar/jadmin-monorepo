@@ -22,7 +22,8 @@ jobs:
           script: |
             set -e
 
-            echo ${{ secrets.REPO_URL }}
+            echo "Deploying to ${{ secrets.VPS_HOST }}"
+            echo "Repo URL: ${{ secrets.REPO_URL }}"
 
             # Clone or pull latest code
             if [ ! -d "$HOME/apps/jadmin" ]; then
