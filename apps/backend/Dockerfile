@@ -10,10 +10,10 @@ RUN npm ci
 
 # ── Build ──
 FROM base AS build
-COPY --from=deps /app/node_modules ./node_modules
+COPY --from=deps /app ./
 COPY apps/backend ./apps/backend
 WORKDIR /app/apps/backend
-RUN ln -s /app/node_modules ./node_modules && npm run build
+RUN npm run build
 
 # ── Runtime ──
 FROM base AS runtime
@@ -24,8 +24,9 @@ WORKDIR /app
 COPY --from=build /app/apps/backend/dist ./dist
 COPY --from=build /app/apps/backend/package.json ./
 
-# Copy production node_modules
+# Copy all node_modules (root + nested non-hoisted)
 COPY --from=deps /app/node_modules ./node_modules
+COPY --from=deps /app/apps/backend/node_modules ./node_modules
 
 # Copy drizzle config + schema for migrations
 COPY --from=build /app/apps/backend/drizzle.config.ts ./drizzle.config.ts
