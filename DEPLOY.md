@@ -7,7 +7,7 @@ This guide assumes you already have a VPS with Docker installed and a Strapi sta
 - Docker & Docker Compose installed on VPS
 - DNS A records pointing to your VPS IP:
   - `dashboard.jevansa.com.pe` → `<VPS_IP>`
-  - `api.dashboard.jevansa.com.pe` → `<VPS_IP>`
+  - `api.jevansa.com.pe` → `<VPS_IP>`
 
 ---
 
@@ -85,7 +85,7 @@ volumes:
 ### `~/apps/strapi/Caddyfile`
 
 ```caddyfile
-api.jevansa.com.pe {
+cms.jevansa.com.pe {
     reverse_proxy strapi:1337
 }
 
@@ -93,7 +93,7 @@ dashboard.jevansa.com.pe {
     reverse_proxy frontend:3000
 }
 
-api.dashboard.jevansa.com.pe {
+api.jevansa.com.pe {
     reverse_proxy backend:8080
 }
 ```
@@ -152,8 +152,8 @@ docker compose exec backend npx drizzle-kit push
 ## 4. Verify
 
 - https://dashboard.jevansa.com.pe — Frontend
-- https://api.dashboard.jevansa.com.pe/health — Backend health check
-- wss://api.dashboard.jevansa.com.pe — WebSocket
+- https://api.jevansa.com.pe/health — Backend health check
+- wss://api.jevansa.com.pe — WebSocket
 
 ## Useful commands
 
