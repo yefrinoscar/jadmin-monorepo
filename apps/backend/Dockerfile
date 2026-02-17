@@ -6,7 +6,7 @@ FROM base AS deps
 COPY package.json package-lock.json ./
 COPY apps/backend/package.json ./apps/backend/
 COPY apps/frontend/package.json ./apps/frontend/
-RUN npm ci --legacy-peer-deps
+RUN npm ci
 
 # ── Build ──
 FROM base AS build
