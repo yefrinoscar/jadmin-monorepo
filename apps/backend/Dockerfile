@@ -7,6 +7,7 @@ COPY package.json package-lock.json ./
 COPY apps/backend/package.json ./apps/backend/
 COPY apps/frontend/package.json ./apps/frontend/
 RUN npm ci
+RUN mkdir -p /app/apps/backend/node_modules
 
 # ── Build ──
 FROM base AS build
