@@ -12,8 +12,8 @@ RUN npm ci
 FROM base AS build
 COPY --from=deps /app ./
 COPY apps/backend ./apps/backend
-# Build from monorepo root so tsc resolves hoisted @types/* from /app/node_modules
-RUN npm run build --workspace=@jadmin/backend
+WORKDIR /app/apps/backend
+RUN npx tsc
 
 # ── Runtime ──
 FROM base AS runtime
