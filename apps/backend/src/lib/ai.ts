@@ -135,7 +135,7 @@ export async function generateAIResponse(
                 model: mistral(env.MISTRAL_MODEL),
                 system: systemContext,
                 messages,
-                maxTokens: 300,
+                maxOutputTokens: 300,
                 temperature: 0.7,
             });
 
