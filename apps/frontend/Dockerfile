@@ -7,6 +7,7 @@ COPY apps/frontend/package.json ./apps/frontend/package.json
 
 RUN npm ci --workspace=@jadmin/frontend
 RUN npm i @rollup/rollup-linux-x64-musl --no-save
+RUN npm i lightningcss-linux-x64-musl --no-save
 RUN mkdir -p /app/apps/frontend/node_modules
 
 # ── Stage 2: Build ───────────────────────────────────────────────────────────
