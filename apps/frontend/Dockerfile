@@ -5,7 +5,7 @@ WORKDIR /app
 COPY package.json package-lock.json ./
 COPY apps/frontend/package.json ./apps/frontend/package.json
 
-RUN npm ci --workspace=@jadmin/frontend
+RUN npm install --workspace=@jadmin/frontend
 RUN mkdir -p /app/apps/frontend/node_modules
 
 # ── Stage 2: Build ───────────────────────────────────────────────────────────

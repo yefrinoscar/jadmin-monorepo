@@ -14,5 +14,8 @@
         "build": "turbo run build",
         "lint": "turbo run lint",
         "typecheck": "turbo run typecheck"
+    },
+    "overrides": {
+        "rollup": "npm:@rollup/wasm-node"
     }
 }
