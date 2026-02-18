@@ -1,4 +1,4 @@
-FROM node:22-alpine AS base
+FROM node:22-bookworm-slim AS base
 WORKDIR /app
 
 # ── Install deps (monorepo root lockfile) ──
@@ -6,10 +6,7 @@ FROM base AS deps
 COPY package.json package-lock.json ./
 COPY apps/backend/package.json ./apps/backend/
 COPY apps/frontend/package.json ./apps/frontend/
-RUN npm i -g npm@11.10.0
-RUN npm ci
-# npm optional-deps bug can skip platform package in CI; ensure Rollup binary for Alpine exists
-RUN npm i --no-save @rollup/rollup-linux-x64-musl
+RUN npm ci --include=optional
 
 # ── Build ──
 FROM base AS build

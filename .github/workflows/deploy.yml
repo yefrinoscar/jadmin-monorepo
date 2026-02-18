@@ -1,78 +1,81 @@
-name: Deploy to Hetzner VPS
+name: Deploy Monorepo to VPS
 
 on:
   push:
     branches: [main]
   workflow_dispatch:
+    inputs:
+      run_db_migrations:
+        description: "Run backend DB push after deploy"
+        required: false
+        default: false
+        type: boolean
 
-env:
-  DEPLOY_PATH: ~/apps/jadmin
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
 
 jobs:
   deploy:
     name: Build & Deploy
     runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    env:
+      APP_DIR: ~/apps/jadmin
+      BRANCH: main
+      RUN_DB_MIGRATIONS: ${{ inputs.run_db_migrations && 'true' || 'false' }}
     steps:
       - name: Deploy via SSH
-        uses: appleboy/ssh-action@v1
+        uses: appleboy/ssh-action@v1.2.0
         with:
           host: ${{ secrets.VPS_HOST }}
           username: ${{ secrets.VPS_USER }}
           password: ${{ secrets.VPS_PASSWORD }}
+          script_stop: true
+          envs: APP_DIR,BRANCH,RUN_DB_MIGRATIONS
           script: |
-            set -e
+            set -euo pipefail
 
-            echo "Deploying to ${{ secrets.VPS_HOST }}"
-            echo "Repo URL: ${{ secrets.REPO_URL }}"
-
-            # Clone or pull latest code
-            if [ ! -d "$HOME/apps/jadmin/.git" ]; then
-              # Preserve .env if it exists
-              if [ -f "$HOME/apps/jadmin/.env" ]; then
-                cp $HOME/apps/jadmin/.env /tmp/jadmin_env_backup
-              fi
-              rm -rf $HOME/apps/jadmin
-              git clone ${{ secrets.REPO_URL }} $HOME/apps/jadmin
-              # Restore .env
-              if [ -f /tmp/jadmin_env_backup ]; then
-                mv /tmp/jadmin_env_backup $HOME/apps/jadmin/.env
-              fi
-            fi
-
-            cd $HOME/apps/jadmin
-            git fetch origin main
-            git reset --hard origin/main
-
-            # Ensure .env exists
-            if [ ! -f .env ]; then
-              echo "ERROR: .env file not found. Create it first from .env.example"
+            REPO_URL="${{ secrets.REPO_URL }}"
+            if [ -z "$REPO_URL" ]; then
+              echo "ERROR: REPO_URL secret is empty"
               exit 1
             fi
 
-            # Ensure shared network exists
+            echo "Deploying ${BRANCH} to ${APP_DIR}"
+
+            mkdir -p "$(dirname "$APP_DIR")"
+            if [ ! -d "$APP_DIR/.git" ]; then
+              git clone "$REPO_URL" "$APP_DIR"
+            fi
+
+            cd "$APP_DIR"
+            git remote set-url origin "$REPO_URL"
+            git fetch --prune origin "$BRANCH"
+            git checkout -B "$BRANCH" "origin/$BRANCH"
+
+            if [ ! -f .env ]; then
+              echo "ERROR: .env file not found in $APP_DIR"
+              echo "Create it from .env.example before deploying"
+              exit 1
+            fi
+
             docker network inspect web >/dev/null 2>&1 || docker network create web
 
-            # Ensure swap exists (prevents OOM on low-RAM VPS)
-            if [ ! -f /swapfile ]; then
-              fallocate -l 2G /swapfile
-              chmod 600 /swapfile
-              mkswap /swapfile
-              swapon /swapfile
-              echo '/swapfile none swap sw 0 0' >> /etc/fstab
-              echo "Swap created"
+            docker compose config -q
+            docker compose build --pull backend frontend
+            docker compose up -d --remove-orphans
+
+            if [ "$RUN_DB_MIGRATIONS" = "true" ]; then
+              echo "Running DB migrations..."
+              docker compose exec -T backend npm run db:push
             fi
-            swapon --show
 
-            # Build sequentially to reduce peak memory usage
-            docker compose build --no-cache backend
-            docker compose build --no-cache frontend
-            docker compose up -d
+            docker compose ps
+            docker compose logs --tail=80 backend
+            docker compose logs --tail=80 frontend
 
-            # NOTE: Run migrations manually when schema changes:
-            # docker compose exec -T backend npx drizzle-kit push
-            # Or from local: npx drizzle-kit push (pointing at production DB)
-
-            # Cleanup old images
             docker image prune -f
-
             echo "✅ Deploy complete"
