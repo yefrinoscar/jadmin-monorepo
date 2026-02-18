@@ -6,7 +6,10 @@ FROM base AS deps
 COPY package.json package-lock.json ./
 COPY apps/backend/package.json ./apps/backend/
 COPY apps/frontend/package.json ./apps/frontend/
+RUN npm i -g npm@11.10.0
 RUN npm ci
+# npm optional-deps bug can skip platform package in CI; ensure Rollup binary for Alpine exists
+RUN npm i --no-save @rollup/rollup-linux-x64-musl
 
 # ── Build ──
 FROM base AS build
