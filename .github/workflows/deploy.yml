@@ -35,8 +35,8 @@ jobs:
             docker compose build --no-cache
             docker compose up -d --remove-orphans
 
-            # Run DB migrations
-            docker compose exec -T backend npx drizzle-kit migrate
+            # Push DB schema (no migration files needed)
+            docker compose exec -T backend npx drizzle-kit push
 
             # Cleanup old images
             docker image prune -f
