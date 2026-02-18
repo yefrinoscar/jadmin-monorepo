@@ -1,0 +1,73 @@
+services:
+  jadmindb:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${PGUSER}
+      POSTGRES_PASSWORD: ${PGPASSWORD}
+      POSTGRES_DB: ${PGDATABASE}
+    volumes:
+      - jadmin_pgdata:/var/lib/postgresql/data
+    networks:
+      - internal
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${PGUSER} -d ${PGDATABASE}"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  backend:
+    build:
+      context: .
+      dockerfile: apps/backend/Dockerfile
+    restart: unless-stopped
+    depends_on:
+      jadmindb:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      PORT: 8080
+      PGHOST: jadmindb
+      PGDATABASE: ${PGDATABASE}
+      PGUSER: ${PGUSER}
+      PGPASSWORD: ${PGPASSWORD}
+      PGSSLMODE: disable
+      BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET}
+      BETTER_AUTH_URL: https://api.jevansa.com.pe
+      FRONTEND_URL: https://dashboard.jevansa.com.pe
+      RESEND_API_KEY: ${RESEND_API_KEY}
+      RESEND_FROM_EMAIL: ${RESEND_FROM_EMAIL:-no-reply@underla.store}
+      MISTRAL_API_KEY: ${MISTRAL_API_KEY}
+      MISTRAL_MODEL: ${MISTRAL_MODEL:-mistral-small-latest}
+    networks:
+      - internal
+      - web
+    expose:
+      - "8080"
+
+  frontend:
+    build:
+      context: .
+      dockerfile: apps/frontend/Dockerfile
+      args:
+        VITE_BACKEND_URL: https://api.jevansa.com.pe
+    restart: unless-stopped
+    depends_on:
+      - backend
+    environment:
+      NODE_ENV: production
+      VITE_BACKEND_URL: https://api.jevansa.com.pe
+    networks:
+      - internal
+      - web
+    expose:
+      - "3000"
+
+volumes:
+  jadmin_pgdata:
+
+networks:
+  internal:
+    driver: bridge
+  web:
+    external: true

@@ -1,0 +1,44 @@
+name: Deploy jadmin
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy to VPS via SSH
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          password: ${{ secrets.VPS_PASSWORD }}
+          script: |
+            set -e
+
+            APP_DIR=~/apps/jadmin
+
+            # Clone or pull
+            if [ ! -d "$APP_DIR" ]; then
+              git clone https://github.com/${{ github.repository }}.git "$APP_DIR"
+            fi
+
+            cd "$APP_DIR"
+            git fetch origin main
+            git reset --hard origin/main
+
+            # Ensure the shared network exists
+            docker network inspect web >/dev/null 2>&1 || docker network create web
+
+            # Build and deploy
+            docker compose build --no-cache
+            docker compose up -d --remove-orphans
+
+            # Run DB migrations
+            docker compose exec -T backend npx drizzle-kit migrate
+
+            # Cleanup old images
+            docker image prune -f
+
+            echo "✅ jadmin deployed successfully"
