@@ -1,4 +1,5 @@
-import { Navigate, createFileRoute } from '@tanstack/react-router'
+import { createFileRoute } from '@tanstack/react-router'
+import { SignupForm } from '@/components/signup-form'
 import { guestMiddleware } from '@/lib/middleware'
 
 export const Route = createFileRoute('/signup')({
@@ -8,7 +9,12 @@ export const Route = createFileRoute('/signup')({
   },
 })
 
-
 function SignupPage() {
-  return <Navigate to="/login" search={{ error: undefined, redirect: undefined }} />
+  return (
+    <div className="flex min-h-screen items-center justify-center bg-background p-4">
+      <div className="w-full max-w-sm">
+        <SignupForm />
+      </div>
+    </div>
+  )
 }

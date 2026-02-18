@@ -111,6 +111,12 @@ export function LoginForm({
               {isLoading ? "Iniciando sesión..." : "Iniciar Sesión"}
             </Button>
           </Field>
+          <div className="text-center text-sm text-muted-foreground">
+            ¿No tienes una cuenta?{" "}
+            <Link to="/signup" className="text-primary hover:underline font-medium">
+              Crear cuenta
+            </Link>
+          </div>
         </FieldGroup>
 
       </form>
