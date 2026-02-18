@@ -23,7 +23,6 @@ jobs:
     permissions:
       contents: read
     env:
-      APP_DIR: ~/apps/jadmin
       BRANCH: main
       RUN_DB_MIGRATIONS: ${{ inputs.run_db_migrations && 'true' || 'false' }}
     steps:
@@ -34,9 +33,11 @@ jobs:
           username: ${{ secrets.VPS_USER }}
           password: ${{ secrets.VPS_PASSWORD }}
           script_stop: true
-          envs: APP_DIR,BRANCH,RUN_DB_MIGRATIONS
+          envs: BRANCH,RUN_DB_MIGRATIONS
           script: |
             set -euo pipefail
+
+            APP_DIR="$HOME/apps/jadmin"
 
             REPO_URL="${{ secrets.REPO_URL }}"
             if [ -z "$REPO_URL" ]; then
