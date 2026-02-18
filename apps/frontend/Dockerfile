@@ -1,17 +1,15 @@
 # ── Stage 1: Install dependencies ────────────────────────────────────────────
-FROM node:22-alpine AS deps
+FROM node:22-slim AS deps
 WORKDIR /app
 
 COPY package.json package-lock.json ./
 COPY apps/frontend/package.json ./apps/frontend/package.json
 
 RUN npm ci --workspace=@jadmin/frontend
-RUN npm i @rollup/rollup-linux-x64-musl --no-save
-RUN npm i lightningcss-linux-x64-musl --no-save
 RUN mkdir -p /app/apps/frontend/node_modules
 
 # ── Stage 2: Build ───────────────────────────────────────────────────────────
-FROM node:22-alpine AS builder
+FROM node:22-slim AS builder
 WORKDIR /app
 
 COPY --from=deps /app/node_modules ./node_modules
@@ -27,7 +25,7 @@ ENV VITE_BACKEND_URL=$VITE_BACKEND_URL
 RUN npx vite build
 
 # ── Stage 3: Production runtime ──────────────────────────────────────────────
-FROM node:22-alpine AS runner
+FROM node:22-slim AS runner
 WORKDIR /app
 
 ENV NODE_ENV=production
